@@ -5,9 +5,8 @@ import sun.util.calendar.CalendarUtils;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.sql.*;
+import java.util.Vector;
 import java.util.Date;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
@@ -20,12 +19,11 @@ public class MySQLClient extends JFrame{
     String useSSLcommand = "?useSSL=false";
     String user = "joshimo";
     String password = "joshimo@list.ru";
-    String query = ";";
+    String query = "SELECT * FROM instruments;";
 
     Connection connection;
     Statement statement;
     ResultSet result;
-    int updateResult;
 
     JLabel serverNameLabel;
     JLabel databaseNameLabel;
@@ -34,6 +32,8 @@ public class MySQLClient extends JFrame{
     JTextPane requestField;
     JTextPane answerField;
     JTextPane consoleField;
+
+    JTable requestResultTable;
 
     JScrollPane requestPanel;
     JScrollPane answerPanel;
@@ -46,16 +46,21 @@ public class MySQLClient extends JFrame{
     JButton clearRequestButton;
     JButton clearAnswerButton;
     JButton disconnectButton;
+    JButton saveToXlsButton;
 
+    boolean connectButtonStatus = true;
+    boolean isFirstRun = true;
+    boolean isConnectedToDB = false;
+
+    Vector<Vector<String>> resultTable = new Vector<>();
+    Vector<String> resultTableHeader = new Vector<>();
 
     TitledBorder requestBorder = new TitledBorder("Request to SQL database:");
     TitledBorder answerBorder = new TitledBorder("Answer of SQL server:");
     TitledBorder consoleBorder = new TitledBorder("Console");
 
-    JTable dataBaseTable;
-
     public MySQLClient() {
-        super("SQL Client");
+        super("MySQL Client");
 
         if (JOptionPane.showConfirmDialog(null, "Current database settings:" + "\n\n" +
                 "Server: " + webAddr + "\n" +
@@ -121,12 +126,21 @@ public class MySQLClient extends JFrame{
     }
 
     private void CreateAnswerPanel(int windowWidth) {
-        answerField = new JTextPane();
-        answerField.setText("");
-        answerField.setEditable(false);
-        answerPanel = new JScrollPane(answerField);
+        answerPanel = new JScrollPane(null, 20, 30);
         answerPanel.setBounds(10, 220, windowWidth - 20, 400);
         answerPanel.setBorder(answerBorder);
+    }
+
+    private void RefreshAnswerPanel(Vector<Vector<String>> resultList, Vector<String> resultHeader) {
+        requestResultTable = new JTable(resultList, resultHeader);
+        requestResultTable.setAutoResizeMode(0);
+        answerPanel.setViewportView(requestResultTable);
+    }
+
+    private void RefreshAnswerPanel(String message) {
+        answerField = new JTextPane();
+        answerField.setText(message);
+        answerPanel.setViewportView(answerField);
     }
 
     private void CreateConsolePanel(int windowWidth) {
@@ -164,28 +178,45 @@ public class MySQLClient extends JFrame{
 
     private void CreateButtonPanel(int windowWidth) {
         buttonPanel = new JPanel();
-        buttonPanel.setBounds(windowWidth / 2 + 10, 180, windowWidth / 2 - 20, 40);
+        buttonPanel.setBounds((int) (windowWidth * 0.4 + 10), 180, (int) (windowWidth * 0.6 - 20), 40);
 
         connectButton = new JButton("Connect to DB");
+        connectButton.setEnabled(connectButtonStatus);
         connectButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 consoleField.setText("Connecting to " + url);
-                if (ConnectToDB()) {
+                connectButtonStatus = false;
+                connectButton.setEnabled(connectButtonStatus);
+                isConnectedToDB = ConnectToDB();
+                if (isConnectedToDB) {
                     consoleField.setText("Connected!");
-                    connectButton.setEnabled(false);
+                    submitButton.setEnabled(isConnectedToDB);
+                    isFirstRun = false;
                 }
-                else connectButton.setEnabled(true);
+                else {
+                    connectButtonStatus = true;
+                    connectButton.setEnabled(connectButtonStatus);
+                    consoleField.setText("Connection failed!");
+                }
             }
         });
+
         submitButton = new JButton("Submit Request");
+        submitButton.setEnabled(isConnectedToDB);
         submitButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                consoleField.setText("Sending query '" + requestField.getText() + "', wait...");
-                SendQueryToDB(requestField.getText());
+                if (isConnectedToDB) {
+                    consoleField.setText("Sending query '" + requestField.getText() + "', wait...");
+                    SendQueryToDB(requestField.getText());
+                }
+                else {
+                    JOptionPane.showMessageDialog(null, "There is no connection to DataBase.\nPlease connect first!");
+                }
             }
         });
+
         clearRequestButton = new JButton("Clear Request");
         clearRequestButton.addActionListener(new ActionListener() {
             @Override
@@ -193,13 +224,15 @@ public class MySQLClient extends JFrame{
                 requestField.setText(";");
             }
         });
+
         clearAnswerButton = new JButton("Clear Answer");
         clearAnswerButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                answerField.setText("");
+                RefreshAnswerPanel("");
             }
         });
+
         disconnectButton = new JButton("Disconnect");
         disconnectButton.addActionListener(new ActionListener() {
             @Override
@@ -208,7 +241,10 @@ public class MySQLClient extends JFrame{
                     connection.close();
                     statement.close();
                     if (connection.isClosed()) consoleField.setText("Connection closed...");
-                    connectButton.setEnabled(true);
+                    connectButtonStatus = true;
+                    isConnectedToDB = false;
+                    connectButton.setEnabled(connectButtonStatus);
+                    submitButton.setEnabled(isConnectedToDB);
                 }
                 catch(SQLException sqle) {
                     consoleField.setText("\nSQL closing exception:\n" + sqle.toString());
@@ -219,11 +255,31 @@ public class MySQLClient extends JFrame{
             }
         });
 
+        saveToXlsButton = new JButton("Save Results to XLS");
+        saveToXlsButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String filename = "";
+                JFileChooser saveFile = new JFileChooser();
+                saveFile.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                int result = saveFile.showDialog(null, "Ok");
+                if (result == JFileChooser.APPROVE_OPTION)
+                    if (saveFile.getSelectedFile().isDirectory())
+                        filename = saveFile.getSelectedFile().getAbsolutePath() + "\\QueryResultExport.xls";
+                    else
+                        filename = saveFile.getSelectedFile().getAbsolutePath();
+
+                System.out.println(filename);
+                Export.SaveInstrumentsToXLS(filename, resultTable, resultTableHeader);
+            }
+        });
+
         buttonPanel.add(connectButton);
         buttonPanel.add(submitButton);
         buttonPanel.add(clearRequestButton);
         buttonPanel.add(clearAnswerButton);
         buttonPanel.add(disconnectButton);
+        buttonPanel.add(saveToXlsButton);
     }
 
     private boolean ConnectToDB() {
@@ -231,7 +287,7 @@ public class MySQLClient extends JFrame{
         try {
             connection = DriverManager.getConnection(url, user, password);
             statement = connection.createStatement();
-            answerField.setText(connection.getCatalog());
+            if (isFirstRun) RefreshAnswerPanel(connection.getCatalog());
             b = !connection.isClosed();
         }
         catch (SQLException se) {
@@ -253,7 +309,7 @@ public class MySQLClient extends JFrame{
         }
     }
 
-    private boolean CheckRequest(String request) {
+    private boolean IsUpdate(String request) {
         return (request.toLowerCase().contains("create") |
                 request.toLowerCase().contains("drop") |
                 request.toLowerCase().contains("add") |
@@ -266,45 +322,51 @@ public class MySQLClient extends JFrame{
 
     private void SendQueryToDB(String request) {
         String s = "";
-        int j = 1;
+        int j = 1, c = 0;
+
         try {
-            if (CheckRequest(request))
-                answerField.setText("Server return = " + statement.executeUpdate(request));
+            if (IsUpdate(request)) {
+                RefreshAnswerPanel("Server return = " + statement.executeUpdate(request));
+            }
             else
                 result = statement.executeQuery(request);
 
             if (result != null) {
                 if (!result.next())
-                    s = "null";
+                    RefreshAnswerPanel("null");
                 else
                     result.absolute(0);
 
                 while (result.next()) {
                     j = 1;
+                    Vector<String> currentRow = new Vector<>();
+
                     while (true) {
                         try {
                             try {
-                                s = s + result.getString(j) + " | ";
+                                String currentCell = result.getString(j);
+                                if (c == 0) resultTableHeader.add(result.getMetaData().getColumnName(j));
+                                currentRow.add(currentCell);
                             }
                             catch (NullPointerException npe) {
-                                System.out.println("Null pointer exception");
+                                System.out.println("Null pointer exception in 'void SendQueryToDB(String request)'");
                             }
                         }
                         catch (SQLException x1) {
                             break;
                         }
-                        j++;
+                        j ++;
                     }
-                    s = s + "\n" + "---" + "\n";
+                    resultTable.add(currentRow);
+                    c ++;
                 }
 
-                answerField.setText(s);
+                RefreshAnswerPanel(resultTable, resultTableHeader);
             }
 
         }
         catch (SQLException sqle) {
             consoleField.setText("SQL Exception: " + sqle.toString());
-            answerField.setText(s);
         }
     }
 
