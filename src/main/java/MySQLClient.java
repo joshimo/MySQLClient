@@ -52,8 +52,8 @@ public class MySQLClient extends JFrame{
     boolean isFirstRun = true;
     boolean isConnectedToDB = false;
 
-    Vector<Vector<String>> resultTable = new Vector<>();
-    Vector<String> resultTableHeader = new Vector<>();
+    Vector<Vector<String>> resultTable;
+    Vector<String> resultTableHeader;
 
     TitledBorder requestBorder = new TitledBorder("Request to SQL database:");
     TitledBorder answerBorder = new TitledBorder("Answer of SQL server:");
@@ -270,7 +270,10 @@ public class MySQLClient extends JFrame{
                         filename = saveFile.getSelectedFile().getAbsolutePath();
 
                 System.out.println(filename);
-                Export.SaveInstrumentsToXLS(filename, resultTable, resultTableHeader);
+                Export export = new Export();
+                export.setAddRequestListing(true);
+                export.setRequestString(requestField.getText());
+                export.SaveInstrumentsToXLS(filename, resultTable, resultTableHeader);
             }
         });
 
@@ -323,6 +326,9 @@ public class MySQLClient extends JFrame{
     private void SendQueryToDB(String request) {
         String s = "";
         int j = 1, c = 0;
+
+        resultTable = new Vector<>();
+        resultTableHeader = new Vector<>();
 
         try {
             if (IsUpdate(request)) {
