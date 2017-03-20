@@ -133,8 +133,32 @@ public class MySQLClient extends JFrame{
 
     private void RefreshAnswerPanel(Vector<Vector<String>> resultList, Vector<String> resultHeader) {
         requestResultTable = new JTable(resultList, resultHeader);
+        Vector<Integer> columnSizeArray = DetectColumnSize(resultList, resultHeader);
         requestResultTable.setAutoResizeMode(0);
+        for (int i = 0; i < resultHeader.size(); i ++)
+            requestResultTable.getColumnModel().getColumn(i).setPreferredWidth(columnSizeArray.get(i));
         answerPanel.setViewportView(requestResultTable);
+    }
+
+    private Vector<Integer> DetectColumnSize(Vector<Vector<String>> resultList, Vector<String> resultHeader) {
+        Vector<Integer> columnSizeArray =  new Vector<>();
+
+        for (int i = 0; i < resultHeader.size(); i ++) {
+            columnSizeArray.add(i, 10 * resultHeader.get(i).length());
+        }
+
+        for (int i = 0; i < resultList.size(); i ++) {
+            try {
+                for (int j = 0; j < resultList.get(i).size(); j++) {
+                    int originCellSize = columnSizeArray.get(j);
+                    int currentCellSize = 8 * resultList.get(i).get(j).length();
+                    if (currentCellSize > originCellSize) columnSizeArray.set(j, currentCellSize);
+                }
+            }
+            catch (NullPointerException npe) {}
+        }
+
+        return columnSizeArray;
     }
 
     private void RefreshAnswerPanel(String message) {

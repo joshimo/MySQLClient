@@ -30,7 +30,6 @@ class Export {
         this.addRequestListing = addRequestListing;
     }
 
-
     void SaveInstrumentsToXLS(String filename, Vector<Vector<String>> dataTable, Vector<String> dataTableHeader) {
 
         try (FileOutputStream stream = new FileOutputStream(new File (filename))) {
