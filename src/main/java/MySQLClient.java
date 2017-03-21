@@ -1,6 +1,7 @@
 /**
  * Created by y.golota on 02.03.2017.
  */
+
 import sun.util.calendar.CalendarUtils;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
@@ -39,7 +40,8 @@ public class MySQLClient extends JFrame{
     JScrollPane answerPanel;
     JScrollPane consolePanel;
 
-    JPanel buttonPanel;
+    JPanel mainButtonPanel;
+    JPanel navigateButtonPanel;
 
     JButton connectButton;
     JButton submitButton;
@@ -47,20 +49,65 @@ public class MySQLClient extends JFrame{
     JButton clearAnswerButton;
     JButton disconnectButton;
     JButton saveToXlsButton;
+    JButton prevButton;
+    JButton nextButton;
 
     boolean connectButtonStatus = true;
     boolean isFirstRun = true;
     boolean isConnectedToDB = false;
 
+    int requestCounter = 0;
+
+    String request;
+
     Vector<Vector<String>> resultTable;
     Vector<String> resultTableHeader;
+    Vector<String> requestList;
 
     TitledBorder requestBorder = new TitledBorder("Request to SQL database:");
     TitledBorder answerBorder = new TitledBorder("Answer of SQL server:");
     TitledBorder consoleBorder = new TitledBorder("Console");
 
+    static int scrWidth;
+    static int scrHeight;
+    static double kW;
+    static double kH;
+
+    static int L;
+    static int H;
+
+    static {
+        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+        scrWidth = (int) screen.getWidth();
+        scrHeight = (int) screen.getHeight();
+        if (scrWidth >= 1366) {
+            if (scrWidth < 1600) {
+                L = 1366;
+                H = 768;
+            }
+            else {
+                L = (int) (0.85 * scrWidth);
+                H = (int) (0.85 * scrHeight);
+            }
+        }
+        else {
+            L = scrWidth;
+            H = scrHeight;
+        }
+
+        if (scrWidth < 1152) {
+            JOptionPane.showMessageDialog(null, "Unsupported screen resolution!");
+            System.exit(0);
+        }
+
+        kW = 1.0 * L / 1366;
+        kH = 1.0 * H / 768;
+    }
+
     public MySQLClient() {
         super("MySQL Client");
+        ImageIcon frameIcon = new ImageIcon("src\\main\\resources\\Icons\\sql.png");
+        this.setIconImage(frameIcon.getImage());
 
         if (JOptionPane.showConfirmDialog(null, "Current database settings:" + "\n\n" +
                 "Server: " + webAddr + "\n" +
@@ -74,12 +121,15 @@ public class MySQLClient extends JFrame{
         }
 
         url = "jdbc:mysql://" + webAddr + "/" + databaseName + useSSLcommand;
+        requestList = new Vector<>();
+
         Init();
     }
 
     private void Init() {
-        int L = 1366;
-        int H = 768;
+
+        if (scrWidth > 1366)
+            this.setLocation((int) (0.5 * (scrWidth - L)), (int) (0.5 * (scrHeight - H)));
 
         this.setSize(L, H);
         this.setResizable(false);
@@ -90,13 +140,15 @@ public class MySQLClient extends JFrame{
         CreateRequestPanel(L);
         CreateAnswerPanel(L);
         CreateConsolePanel(L);
-        CreateButtonPanel(L);
+        CreateMainButtonPanel(L);
+        CreateNavigateButtonPanel(L);
 
         this.add(serverNameLabel);
         this.add(databaseNameLabel);
         this.add(userNameLabel);
         this.add(requestPanel);
-        this.add(buttonPanel);
+        this.add(mainButtonPanel);
+        this.add(navigateButtonPanel);
         this.add(answerPanel);
         this.add(consolePanel);
         this.setVisible(true);
@@ -122,12 +174,12 @@ public class MySQLClient extends JFrame{
         requestField.setCaretPosition(0);
         requestPanel = new JScrollPane(requestField);
         requestPanel.setBorder(requestBorder);
-        requestPanel.setBounds(10, 80, windowWidth - 20, 100);
+        requestPanel.setBounds(10, 80, windowWidth - 20, (int) (110 * kH));
     }
 
     private void CreateAnswerPanel(int windowWidth) {
         answerPanel = new JScrollPane(null, 20, 30);
-        answerPanel.setBounds(10, 220, windowWidth - 20, 400);
+        answerPanel.setBounds(10, (int) (240 * kH), windowWidth - 20, (int) (400 * kH));
         answerPanel.setBorder(answerBorder);
     }
 
@@ -197,14 +249,23 @@ public class MySQLClient extends JFrame{
         consoleField.setBackground(new Color(236, 236, 236));
         consolePanel = new JScrollPane(consoleField);
         consolePanel.setBorder(consoleBorder);
-        consolePanel.setBounds(10, 620, windowWidth - 20, 120);
+        consolePanel.setBounds(10, (int) (640 * kH), windowWidth - 20, (int) (100 * kH));
     }
 
-    private void CreateButtonPanel(int windowWidth) {
-        buttonPanel = new JPanel();
-        buttonPanel.setBounds((int) (windowWidth * 0.4 + 10), 180, (int) (windowWidth * 0.6 - 20), 40);
+    private void CreateMainButtonPanel(int windowWidth) {
+        mainButtonPanel = new JPanel();
+        if (kW > 0.94)
+            mainButtonPanel.setBounds((int) (windowWidth * 0.35 + 10), (int) (190 * kH), (int) (windowWidth * 0.65 - 20), (int) (50 * kH));
+        else
+            mainButtonPanel.setBounds((int) (windowWidth * 0.25 + 10), (int) (190 * kH), (int) (windowWidth * 0.75 - 20), (int) (50 * kH));
 
-        connectButton = new JButton("Connect to DB");
+        ImageIcon connectButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\connect.png");
+        ImageIcon submitButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\submit.png");
+        ImageIcon disconnectButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\disconnect.png");
+        ImageIcon saveToXlsButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\export.png");
+        ImageIcon clearIcon = new ImageIcon("src\\main\\resources\\Icons\\clear.png");
+
+        connectButton = new JButton("Connect to DB", connectButtonIcon);
         connectButton.setEnabled(connectButtonStatus);
         connectButton.addActionListener(new ActionListener() {
             @Override
@@ -226,14 +287,19 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        submitButton = new JButton("Submit Request");
+        submitButton = new JButton("Submit Request", submitButtonIcon);
         submitButton.setEnabled(isConnectedToDB);
         submitButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (isConnectedToDB) {
+                    request = requestField.getText();
+                    requestList.add(request);
+                    requestCounter = requestList.size();
+                    nextButton.setEnabled(false);
+                    if (requestList.size() > 1) prevButton.setEnabled(true);
                     consoleField.setText("Sending query '" + requestField.getText() + "', wait...");
-                    SendQueryToDB(requestField.getText());
+                    SendQueryToDB(request);
                 }
                 else {
                     JOptionPane.showMessageDialog(null, "There is no connection to DataBase.\nPlease connect first!");
@@ -241,7 +307,7 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        clearRequestButton = new JButton("Clear Request");
+        clearRequestButton = new JButton("Clear Request", clearIcon);
         clearRequestButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -249,7 +315,7 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        clearAnswerButton = new JButton("Clear Answer");
+        clearAnswerButton = new JButton("Clear Answer", clearIcon);
         clearAnswerButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -257,7 +323,7 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        disconnectButton = new JButton("Disconnect");
+        disconnectButton = new JButton("Disconnect", disconnectButtonIcon);
         disconnectButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -279,7 +345,7 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        saveToXlsButton = new JButton("Save Results to XLS");
+        saveToXlsButton = new JButton("Save to XLS", saveToXlsButtonIcon);
         saveToXlsButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -301,12 +367,53 @@ public class MySQLClient extends JFrame{
             }
         });
 
-        buttonPanel.add(connectButton);
-        buttonPanel.add(submitButton);
-        buttonPanel.add(clearRequestButton);
-        buttonPanel.add(clearAnswerButton);
-        buttonPanel.add(disconnectButton);
-        buttonPanel.add(saveToXlsButton);
+        mainButtonPanel.add(connectButton);
+        mainButtonPanel.add(submitButton);
+        mainButtonPanel.add(clearRequestButton);
+        mainButtonPanel.add(clearAnswerButton);
+        mainButtonPanel.add(disconnectButton);
+        mainButtonPanel.add(saveToXlsButton);
+    }
+
+    private void CreateNavigateButtonPanel(int windowWidth) {
+        navigateButtonPanel = new JPanel();
+        navigateButtonPanel.setBounds(10, (int) (190 * kH), (int) (windowWidth * 0.25 - 20), (int) (50 * kH));
+
+        ImageIcon prevButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\undo.png");
+        ImageIcon nextButtonIcon = new ImageIcon("src\\main\\resources\\Icons\\redo.png");
+
+        prevButton = new JButton("Prev Request", prevButtonIcon);
+        prevButton.setEnabled(false);
+        prevButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (requestCounter > 0) {
+                    requestCounter --;
+                    nextButton.setEnabled(true);
+                    request = requestList.get(requestCounter);
+                    requestField.setText(request);
+                    if (requestCounter == 0) prevButton.setEnabled(false);
+                }
+            }
+        });
+
+        nextButton = new JButton("Next Request", nextButtonIcon);
+        nextButton.setEnabled(false);
+        nextButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (requestCounter < requestList.size() - 1) {
+                    requestCounter ++;
+                    prevButton.setEnabled(true);
+                    request = requestList.get(requestCounter);
+                    requestField.setText(request);
+                    if (requestCounter == requestList.size() - 1) nextButton.setEnabled(false);
+                }
+            }
+        });
+
+        navigateButtonPanel.add(prevButton);
+        navigateButtonPanel.add(nextButton);
     }
 
     private boolean ConnectToDB() {
@@ -375,7 +482,7 @@ public class MySQLClient extends JFrame{
                         try {
                             try {
                                 String currentCell = result.getString(j);
-                                if (c == 0) resultTableHeader.add(result.getMetaData().getColumnName(j));
+                                if (c == 0) resultTableHeader.add(result.getMetaData().getColumnLabel(j));
                                 currentRow.add(currentCell);
                             }
                             catch (NullPointerException npe) {
