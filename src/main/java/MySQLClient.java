@@ -22,6 +22,14 @@ public class MySQLClient extends JFrame{
     String password = "joshimo@list.ru";
     String query = "SELECT * FROM instruments;";
 
+    /*String url;
+    String webAddr = "localhost:3306";
+    String databaseName = "world";
+    String useSSLcommand = "?useSSL=false";
+    String user = "joshimo";
+    String password = "sakamoto";
+    String query = ";";*/
+
     Connection connection;
     Statement statement;
     ResultSet result;
@@ -121,6 +129,7 @@ public class MySQLClient extends JFrame{
         }
 
         url = "jdbc:mysql://" + webAddr + "/" + databaseName + useSSLcommand;
+        System.out.println("url = " + url);
         requestList = new Vector<>();
 
         Init();
@@ -444,14 +453,15 @@ public class MySQLClient extends JFrame{
     }
 
     private boolean IsUpdate(String request) {
-        return (request.toLowerCase().contains("create") |
-                request.toLowerCase().contains("drop") |
-                request.toLowerCase().contains("add") |
-                request.toLowerCase().contains("insert") |
-                request.toLowerCase().contains("update") |
-                request.toLowerCase().contains("change") |
-                request.toLowerCase().contains("modify") |
-                request.toLowerCase().contains("delete"));
+        return (request.toLowerCase().contains("create ") |
+                request.toLowerCase().contains("drop ") |
+                request.toLowerCase().contains("add ") |
+                request.toLowerCase().contains("insert ") |
+                request.toLowerCase().contains("update ") |
+                request.toLowerCase().contains("change ") |
+                request.toLowerCase().contains("modify ") |
+                request.toLowerCase().contains("use ") |
+                request.toLowerCase().contains("delete "));
     }
 
     private void SendQueryToDB(String request) {
